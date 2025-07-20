@@ -9,7 +9,6 @@ vendor/
 composer.lock
 gitpush.sh
 pkg/
-bin/
 cbuild
 **/.DS_Store
 .test/
@@ -37,3 +36,4 @@ node_modules/
 /lock/*
 /log/*
 /ssh_shell
+/releases
