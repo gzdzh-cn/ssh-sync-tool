@@ -1,3 +1,5 @@
+<!-- @format -->
+
 # SSH 同步工具（ssh-sync-tool）
 
 ## 项目简介
@@ -36,42 +38,121 @@ ssh-sync-tool/
 
 ## 快速开始
 
-### 1. 配置
+### 1. 下载与配置
 
-请先根据实际情况编辑 `config.yaml`，主要配置项包括：
+1. [前往 Releases 页面](https://github.com/gzdzh-cn/ssh-sync-tool/releases) 下载适合你系统的二进制文件。
+2. 下载根目录的 `config.yaml`，与二进制文件放在同一目录。
+3. 修改 `config.yaml` 配置项。
 
-- `RemoteUser`：远程主机用户名
-- `RemoteHost`：远程主机地址
-- `SSHPort`：SSH 端口
-- `RemotePath`：远程同步目录
-- `LocalPath`：本地同步目录
-- `SSHKey`：SSH 私钥路径
-- 其他日志、带宽、备份等参数
+目录示例：
 
-### 2. 编译与运行
+```
+/
+├── config.yaml       # 主配置文件
+├── ssh-sync-tool     # 二进制文件
+```
+
+### 2. 编译（可选）
+
+如需自行编译：
 
 ```bash
 go build -o ssh-sync-tool main.go
-./ssh-sync-tool [选项]
 ```
 
-### 3. 常用命令
+## 命令行用法（新版）
 
-- 显示帮助：`./ssh-sync-tool -h`
-- 测试连接：`./ssh-sync-tool -t`
-- 执行同步：`./ssh-sync-tool`
-- 静默同步：`./ssh-sync-tool -q`
-- 详细同步：`./ssh-sync-tool -v`
-- 本地监听自动同步：`./ssh-sync-tool --watch`
-- 远程监听自动同步：`./ssh-sync-tool --watch-remote`
-- 远程 hash 监听同步：`./ssh-sync-tool --watch-remote-hash`
-- 显示当前配置：`./ssh-sync-tool --show-config`
-- 指定配置文件：`./ssh-sync-tool -c custom.yaml`
+### 基本格式
 
-### 4. 日志与备份
+```bash
+./ssh-sync-tool [命令] [参数]
+```
+
+### 常用命令与别名
+
+| 命令/别名              | 说明                   |
+| ---------------------- | ---------------------- |
+| sync, s                | 执行同步（默认）       |
+| test, t                | 测试 SSH 连接          |
+| conf, config           | 显示当前配置           |
+| ver, version           | 显示版本信息           |
+| w, watch               | 本地目录监听自动同步   |
+| wr, watch-remote       | 远程目录轮询自动同步   |
+| wrh, watch-remote-hash | 远程 hash 监听自动同步 |
+| help, h                | 显示帮助信息           |
+
+### 常用参数
+
+| 参数                | 说明                             |
+| ------------------- | -------------------------------- |
+| -c, --config <文件> | 指定配置文件（默认 config.yaml） |
+| --config=xxx.yaml   | 同上                             |
+| -q, --quiet         | 静默模式                         |
+| -v, --verbose       | 详细模式                         |
+
+### 示例
+
+```bash
+# 执行同步（默认）
+./ssh-sync-tool
+./ssh-sync-tool sync
+./ssh-sync-tool s
+
+# 测试 SSH 连接
+./ssh-sync-tool test
+./ssh-sync-tool t
+
+# 本地监听自动同步
+./ssh-sync-tool w
+./ssh-sync-tool watch
+
+# 远程监听自动同步
+./ssh-sync-tool wr
+./ssh-sync-tool watch-remote
+
+# 远程 hash 监听自动同步
+./ssh-sync-tool wrh --config=prod.yaml
+
+# 显示当前配置
+./ssh-sync-tool conf
+
+# 指定配置文件
+./ssh-sync-tool sync -c my.yaml
+
+# 静默同步
+./ssh-sync-tool -q
+
+# 详细同步
+./ssh-sync-tool -v
+
+# 显示帮助
+./ssh-sync-tool help
+```
+
+## 日志与备份
 
 - 日志文件默认输出到 `log/` 目录，可通过配置调整。
 - 同步前自动备份本地变更，备份目录和保留天数可配置。
+
+## 交叉编译（生成 Linux 和 Windows 可执行文件）
+
+Go 支持一行命令生成不同平台和架构的可执行文件。常见命令如下：
+
+#### 1. 生成可执行文件
+
+```bash
+#先安装 gf
+go install github.com/gogf/gf/cmd/gf/v2@latest
+
+# 批量生成多平台执行文件
+gf build main.go -n ssh-sync-tool-a amd64,arm64 -s linux,darwin -p ./bin
+```
+
+#### 4. 注意事项
+
+- 交叉编译不需要在目标系统上操作，只需在本地执行上述命令即可。
+- 生成的文件可直接在对应系统运行，无需安装 Go 环境。
+- 某些情况下，涉及 cgo 的代码需要在目标平台下编译，普通 Go 代码无需担心。
 
 ## 同步原理简述
 
@@ -94,4 +175,4 @@ go build -o ssh-sync-tool main.go
 
 ---
 
-如需更详细的配置说明或功能扩展，请查阅源码或联系作者。 
+如需更详细的配置说明或功能扩展，请查阅源码或联系作者。

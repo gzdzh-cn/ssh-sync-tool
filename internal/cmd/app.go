@@ -13,8 +13,10 @@ import (
 	syncmod "ssh-sync-tool/internal/sync"
 
 	"crypto/md5"
+	"io/ioutil"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 )
@@ -40,30 +42,35 @@ func NewApp(configPath string) (*App, error) {
 }
 
 func (a *App) ShowHelp() {
+	version := getVersionFromFile()
 	fmt.Println("SSH远程到本地单向同步工具")
 	fmt.Println("")
-	fmt.Println("用法: ssh-sync-tool [选项]")
+	fmt.Printf("版本: %s\n", version)
 	fmt.Println("")
-	fmt.Println("选项:")
-	fmt.Println("  -h, --help        显示此帮助信息")
-	fmt.Println("  -c, --config      指定配置文件路径 (默认: config.yaml)")
-	fmt.Println("  --show-config     显示当前配置")
-	fmt.Println("  -t, --test        仅测试连接，不执行同步")
-	fmt.Println("  -q, --quiet       静默模式（不显示详细进度）")
-	fmt.Println("  -v, --verbose     详细模式（显示详细进度）")
-	fmt.Println("  --version         显示版本信息")
-	fmt.Println("  --watch           本地目录监听变动自动同步（适合本地变动为主场景）")
-	fmt.Println("  --watch-remote    远程目录轮询变动自动同步（适合远程变动为主场景，支持hash对比与断线重连优化）")
+	fmt.Println("用法: ssh-sync-tool [命令] [参数]")
+	fmt.Println("")
+	fmt.Println("常用命令:")
+	fmt.Println("  sync, s                执行同步 (默认)")
+	fmt.Println("  test, t                测试SSH连接")
+	fmt.Println("  conf, config           显示当前配置")
+	fmt.Println("  ver, version           显示版本信息")
+	fmt.Println("  w, watch               本地目录监听自动同步")
+	fmt.Println("  wr, watch-remote       远程目录轮询自动同步")
+	fmt.Println("  wrh, watch-remote-hash 远程hash监听自动同步")
+	fmt.Println("  help, h                显示帮助信息")
+	fmt.Println("")
+	fmt.Println("参数:")
+	fmt.Println("  -c, --config <文件>    指定配置文件 (默认: config.yaml)")
+	fmt.Println("  --config=xxx.yaml      同上")
+	fmt.Println("  -q, --quiet            静默模式")
+	fmt.Println("  -v, --verbose          详细模式")
 	fmt.Println("")
 	fmt.Println("示例:")
-	fmt.Println("  ssh-sync-tool                     执行同步")
-	fmt.Println("  ssh-sync-tool -t                  测试连接")
-	fmt.Println("  ssh-sync-tool --show-config       显示配置")
-	fmt.Println("  ssh-sync-tool -c custom.yaml      使用自定义配置")
-	fmt.Println("  ssh-sync-tool -q                  静默同步")
-	fmt.Println("  ssh-sync-tool -v                  详细同步")
-	fmt.Println("  ssh-sync-tool --watch             本地监听自动同步")
-	fmt.Println("  ssh-sync-tool --watch-remote      远程轮询自动同步")
+	fmt.Println("  ssh-sync-tool sync -c my.yaml")
+	fmt.Println("  ssh-sync-tool test")
+	fmt.Println("  ssh-sync-tool wrh --config=prod.yaml")
+	fmt.Println("  ssh-sync-tool -q")
+	fmt.Println("  ssh-sync-tool w")
 }
 
 func (a *App) ShowConfig() {
@@ -608,40 +615,85 @@ func (a *App) SetVerboseMode() {
 	a.config.ShowProgress = true
 }
 
+// 新增：命令别名映射
+var commandAlias = map[string]string{
+	"sync":              "sync",
+	"s":                 "sync",
+	"test":              "test",
+	"t":                 "test",
+	"conf":              "show-config",
+	"config":            "show-config",
+	"show-config":       "show-config",
+	"ver":               "version",
+	"v":                 "version",
+	"version":           "version",
+	"w":                 "watch",
+	"watch":             "watch",
+	"wr":                "watch-remote",
+	"watch-remote":      "watch-remote",
+	"wrh":               "watch-remote-hash",
+	"watch-remote-hash": "watch-remote-hash",
+	"help":              "help",
+	"h":                 "help",
+}
+
+// 优化参数解析，支持主命令+子命令风格和原有参数
 func ParseArgs(args []string) (action string, configPath string, err error) {
 	action = "sync"            // 默认动作
 	configPath = "config.yaml" // 默认配置文件
 
+	// 先查找主命令
 	for i, arg := range args {
+		// 支持 --config=xxx.yaml
+		if strings.HasPrefix(arg, "--config=") {
+			configPath = strings.TrimPrefix(arg, "--config=")
+			continue
+		}
+		if strings.HasPrefix(arg, "-c=") {
+			configPath = strings.TrimPrefix(arg, "-c=")
+			continue
+		}
+		if arg == "-c" || arg == "--config" {
+			if i+1 < len(args) {
+				configPath = args[i+1]
+			}
+			continue
+		}
+		// 命令别名
+		if v, ok := commandAlias[strings.TrimLeft(arg, "-")]; ok {
+			action = v
+			continue
+		}
+		// 兼容原有参数
 		switch arg {
-		case "-h", "--help":
-			action = "help"
-		case "--show-config":
-			action = "show-config"
-		case "-t", "--test":
-			action = "test"
 		case "-q", "--quiet":
 			action = "quiet-sync"
 		case "-v", "--verbose":
 			action = "verbose-sync"
-		case "--version":
-			action = "version"
-		case "--watch":
-			action = "watch"
-		case "--watch-remote":
-			action = "watch-remote"
-		case "--watch-remote-hash":
-			action = "watch-remote-hash"
-		case "-c", "--config":
-			if i+1 < len(args) {
-				configPath = args[i+1]
-			} else {
-				return "", "", fmt.Errorf("--config 参数需要指定配置文件路径")
+		}
+	}
+	return action, configPath, nil
+}
+
+// 新增：读取 version.go 里的 Version 变量
+func getVersionFromFile() string {
+	path := filepath.Join("version.go")
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "unknown"
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "var Version") {
+			parts := strings.Split(line, "=")
+			if len(parts) == 2 {
+				ver := strings.Trim(parts[1], " \"'")
+				return ver
 			}
 		}
 	}
-
-	return action, configPath, nil
+	return "unknown"
 }
 
 func Run() {
