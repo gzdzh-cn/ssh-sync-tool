@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -269,6 +270,10 @@ func (s *Syncer) PerformSync(ctx context.Context) error {
 		reader := io.MultiReader(stdout, stderr)
 		buf := make([]byte, 4096)
 		var lineBuf []byte
+		var currentFile string
+		filePercentMap := make(map[string]int)
+		fileNameRegex := regexp.MustCompile(`^[\p{Han}\w./\-\(\)\[\]\s]+$`)
+		percentRegex := regexp.MustCompile(`(\d+)%`)
 		for {
 			n, err := reader.Read(buf)
 			if n > 0 {
@@ -276,7 +281,23 @@ func (s *Syncer) PerformSync(ctx context.Context) error {
 				for _, b := range chunk {
 					if b == '\n' || b == '\r' {
 						if len(lineBuf) > 0 {
-							g.Log().Info(ctx, string(lineBuf))
+							line := strings.TrimSpace(string(lineBuf))
+							// 1. 文件名行（不含百分比、不含速度等）
+							if fileNameRegex.MatchString(line) && !percentRegex.MatchString(line) && !strings.Contains(line, "kB/s") && !strings.Contains(line, "MB/s") && len(line) > 0 {
+								currentFile = line
+								if _, ok := filePercentMap[currentFile]; !ok {
+									filePercentMap[currentFile] = -1 // -1表示未输出过
+								}
+							} else if percentRegex.MatchString(line) && currentFile != "" {
+								matches := percentRegex.FindStringSubmatch(line)
+								if len(matches) > 1 {
+									percent, _ := strconv.Atoi(matches[1])
+									if percent > filePercentMap[currentFile] {
+										filePercentMap[currentFile] = percent
+										g.Log().Info(ctx, "%s: %d%%", currentFile, percent)
+									}
+								}
+							}
 							lineBuf = lineBuf[:0]
 						}
 					} else {
@@ -289,7 +310,22 @@ func (s *Syncer) PerformSync(ctx context.Context) error {
 			}
 		}
 		if len(lineBuf) > 0 {
-			g.Log().Info(ctx, string(lineBuf))
+			line := strings.TrimSpace(string(lineBuf))
+			if fileNameRegex.MatchString(line) && !percentRegex.MatchString(line) && !strings.Contains(line, "kB/s") && !strings.Contains(line, "MB/s") && len(line) > 0 {
+				currentFile = line
+				if _, ok := filePercentMap[currentFile]; !ok {
+					filePercentMap[currentFile] = -1
+				}
+			} else if percentRegex.MatchString(line) && currentFile != "" {
+				matches := percentRegex.FindStringSubmatch(line)
+				if len(matches) > 1 {
+					percent, _ := strconv.Atoi(matches[1])
+					if percent > filePercentMap[currentFile] {
+						filePercentMap[currentFile] = percent
+						g.Log().Info(ctx, "%s: %d%%", currentFile, percent)
+					}
+				}
+			}
 		}
 	}()
 
