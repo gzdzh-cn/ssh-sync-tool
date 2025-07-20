@@ -1,0 +1,22 @@
+# SSH 同步工具配置文件
+remoteUser: "admin"            # 远程用户名（用于SSH登录）
+remoteHost: "dzhnas.gzdzh.cn" # 远程主机IP或域名
+remotePath: "/vol2/1000/数据/工作" # 远程数据路径（需要同步的目录）
+localPath: "/vol2/1000/数据/工作" # 本地数据路径（同步到本地的目录）
+logFile: "./log/ssh_sync.log"   # 日志文件路径
+lockFile: "./lock/ssh_sync.lock" # 锁文件路径（防止重复运行）
+backupDir: "./backup/ssh_sync"  # 备份目录（被覆盖/删除文件的备份存放位置）
+sshPort: "388"                  # SSH端口（默认22）
+sshKey: "/home/admin/.ssh/dzhnas_id_rsa" # SSH私钥路径（用于免密登录）
+showProgress: true              # 是否显示详细进度（true显示详细同步进度，false安静模式）
+bandwidthLimit: "1024"         # 带宽限制（KB/s，空为不限速）
+enableDelete: true              # 是否启用删除本地多余文件（true同步删除，false保留本地多余文件）
+connectTimeout: 10              # 连接超时时间（秒）
+backupRetention: 7              # 备份保留天数（定期清理旧备份）
+
+hashFile: ".last_sync_hash"    # 本地hash文件路径（用于变动检测）
+logLevel: "debug"               # 日志等级（all/info/warning/error/debug）
+
+instanceLockFile: "./lock/instance.lock"  # 服务实例锁
+syncLockFile: "./lock/sync.lock"          # 同步任务锁
+remoteWatchInterval: 3  # 远程监听间隔（秒）
